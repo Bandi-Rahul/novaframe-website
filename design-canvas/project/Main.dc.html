@@ -166,17 +166,15 @@ body{margin:0}
 .nf footer nav ul{flex-wrap:wrap;gap:12px 24px}
 .nf footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted);font-size:.92rem}
 
-/* team marquee: auto-scrolls, loops from last back to first, pauses on hover/focus or with the button */
-.nf .rail{overflow:hidden;scroll-snap-type:none;padding-bottom:20px}
-.nf .track{display:flex;gap:20px;width:max-content;animation:nfmarq 32s linear infinite}
-.nf .rail:hover .track,.nf .rail:focus-within .track,.nf .track.paused{animation-play-state:paused}
-@keyframes nfmarq{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 10px))}}
-.nf .pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
+/* team marquee: auto-scrolls and loops (script), with prev/next and pause */
+.nf .rail{overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding-bottom:20px}
+.nf .rail::-webkit-scrollbar{display:none}
+.nf .track{display:flex;gap:20px;width:max-content}
+.nf .pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
 .nf .pause-btn:hover{border-color:var(--ink)}
 @media (prefers-reduced-motion:reduce){
-  .nf .rail{overflow-x:auto;scroll-snap-type:x mandatory}
-  .nf .track{animation:none}
   .nf .dup,.nf .pause-btn{display:none}
+  .nf .rail{scroll-snap-type:x mandatory}
 }
 </style>
 </helmet>
@@ -412,10 +410,16 @@ body{margin:0}
           <h2>Five people, one small studio</h2>
           <p class="lede">We are a young team and we'd rather you know exactly who is working on your business.</p>
         </div>
-        <button class="pause-btn" type="button" aria-pressed="{{paused}}" onClick="{{togglePause}}">{{pauseLabel}}</button>
+        <div class="rail-btns" style="align-items:center"><button class="rail-btn" type="button" aria-label="Previous person" onClick="{{railPrev}}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button class="pause-btn" type="button" aria-pressed="{{paused}}" onClick="{{togglePause}}">{{pauseLabel}}</button>
+          <button class="rail-btn" type="button" aria-label="Next person" onClick="{{railNext}}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button></div>
       </div>
       <div class="rail" role="region" aria-label="Team members. They scroll automatically; hover or use the Pause button to stop.">
-        <div class="{{trackCls}}">
+        <div class="track">
 <div class="person">
           <div class="mono" aria-hidden="true">J</div>
           <h3>Joshua</h3>
@@ -630,6 +634,43 @@ class Component extends DCLogic {
     super(props);
     this.state = { lang: 'en', name: '', biz: '', town: '', phone: '', need: 'Reels and short videos', pLang: 'Telugu', paused: false, notes: '', submitted: false, done: false, status: '' };
   }
+  componentDidMount() {
+    const rail = document.querySelector('.nf .rail');
+    if (!rail) return;
+    const track = rail.querySelector('.track');
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let hold = false, pos = 0, last = 0, resumeAt = 0, raf = 0;
+    const half = () => { const d = track.querySelector('.dup'); return d ? d.offsetLeft : 0; };
+    const stepPx = () => { const c = track.querySelector('.person'); return c ? c.getBoundingClientRect().width + 20 : 300; };
+    this.railGo = (dir) => {
+      const h = half();
+      if (!reduce && h) {
+        if (dir < 0 && rail.scrollLeft < stepPx()) rail.scrollLeft += h;
+        if (dir > 0 && rail.scrollLeft + stepPx() + rail.clientWidth > rail.scrollWidth) rail.scrollLeft -= h;
+      }
+      rail.scrollBy({ left: dir * stepPx(), behavior: reduce ? 'auto' : 'smooth' });
+      resumeAt = performance.now() + 1500;
+    };
+    const on = (n, fn, o) => rail.addEventListener(n, fn, o);
+    on('mouseenter', () => { hold = true; }); on('mouseleave', () => { hold = false; });
+    on('focusin', () => { hold = true; }); on('focusout', () => { hold = false; });
+    on('touchstart', () => { hold = true; }, { passive: true });
+    on('touchend', () => { hold = false; resumeAt = performance.now() + 3000; }, { passive: true });
+    const tick = (t) => {
+      const dt = Math.min(t - last, 64) / 1000; last = t;
+      const h = half();
+      if (!reduce && !this.state.paused && !hold && t > resumeAt && h) {
+        if (Math.abs(rail.scrollLeft - pos) > 2) pos = rail.scrollLeft;
+        pos += dt * 40;
+        if (pos >= h) pos -= h;
+        rail.scrollLeft = pos;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    this._stopRail = () => cancelAnimationFrame(raf);
+  }
+  componentWillUnmount() { if (this._stopRail) this._stopRail(); }
   renderVals() {
     const s = this.state;
     const T = ['0:00 to 0:03', '0:03 to 0:08', '0:08 to 0:15', '0:15 to 0:22', '0:22 to 0:28', '0:28 to 0:30'];
@@ -651,7 +692,9 @@ class Component extends DCLogic {
     if (s.phone.trim()) msg += " You can reach me on " + s.phone.trim() + ".";
     return {
       langs, beats,
-      trackCls: s.paused ? 'track paused' : 'track', paused: s.paused, pauseLabel: s.paused ? 'Play' : 'Pause',
+      paused: s.paused, pauseLabel: s.paused ? 'Play' : 'Pause',
+      railPrev: () => this.railGo && this.railGo(-1),
+      railNext: () => this.railGo && this.railGo(1),
       togglePause: () => this.setState({ paused: !this.state.paused }),
       f: {
         name: s.name, biz: s.biz, town: s.town, phone: s.phone, need: s.need, lang: s.pLang, notes: s.notes,

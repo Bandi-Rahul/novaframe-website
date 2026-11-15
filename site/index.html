@@ -206,17 +206,15 @@ footer{border-top:1px solid var(--line);padding-block:32px}
 footer nav ul{flex-wrap:wrap;gap:12px 24px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted);font-size:.92rem}
 
-/* team marquee: auto-scrolls, loops from last back to first, pauses on hover/focus or with the button */
-.rail{overflow:hidden;scroll-snap-type:none;padding-bottom:20px}
-.track{display:flex;gap:20px;width:max-content;animation:nfmarq 32s linear infinite}
-.rail:hover .track,.rail:focus-within .track,.track.paused{animation-play-state:paused}
-@keyframes nfmarq{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 10px))}}
-.pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
+/* team marquee: auto-scrolls and loops (script), with prev/next and pause */
+.rail{overflow-x:auto;scroll-snap-type:none;scrollbar-width:none;padding-bottom:20px}
+.rail::-webkit-scrollbar{display:none}
+.track{display:flex;gap:20px;width:max-content}
+.pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
 .pause-btn:hover{border-color:var(--ink)}
 @media (prefers-reduced-motion:reduce){
-  .rail{overflow-x:auto;scroll-snap-type:x mandatory}
-  .track{animation:none}
   .dup,.pause-btn{display:none}
+  .rail{scroll-snap-type:x mandatory}
 }
 </style>
 
@@ -417,7 +415,13 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;
           <h2>Five people, one small studio</h2>
           <p class="lede">We are a young team and we'd rather you know exactly who is working on your business.</p>
         </div>
-        <button class="pause-btn" type="button" id="pause" aria-pressed="false" aria-controls="track">Pause</button>
+        <div class="rail-btns" style="align-items:center"><button class="rail-btn" type="button" aria-label="Previous person" id="rail-prev" aria-controls="rail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button class="pause-btn" type="button" id="pause" aria-pressed="false" aria-controls="track">Pause</button>
+          <button class="rail-btn" type="button" aria-label="Next person" id="rail-next" aria-controls="rail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button></div>
       </div>
       <div class="rail" id="rail" role="region" aria-label="Team members. They scroll automatically; hover or use the Pause button to stop.">
         <div class="track" id="track">
@@ -635,13 +639,47 @@ var CONFIG = { whatsapp: "", instagram: "", email: "" };
     document.body.classList.add("has-sticky");
   }
 
+  var rail = document.getElementById("rail");
   var track = document.getElementById("track");
   var pause = document.getElementById("pause");
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var paused = false, hold = false, pos = 0, last = 0, resumeAt = 0;
+  function half() { var d = track.querySelector(".dup"); return d ? d.offsetLeft : 0; }
+  function stepPx() { var c = track.querySelector(".person"); return c ? c.getBoundingClientRect().width + 20 : 300; }
+  function go(dir) {
+    var h = half();
+    if (!reduceMotion && h) {
+      if (dir < 0 && rail.scrollLeft < stepPx()) rail.scrollLeft += h;
+      if (dir > 0 && rail.scrollLeft + stepPx() + rail.clientWidth > rail.scrollWidth) rail.scrollLeft -= h;
+    }
+    rail.scrollBy({ left: dir * stepPx(), behavior: reduceMotion ? "auto" : "smooth" });
+    resumeAt = performance.now() + 1500;
+  }
+  document.getElementById("rail-prev").addEventListener("click", function () { go(-1); });
+  document.getElementById("rail-next").addEventListener("click", function () { go(1); });
   pause.addEventListener("click", function () {
-    var on = track.classList.toggle("paused");
-    pause.setAttribute("aria-pressed", on ? "true" : "false");
-    pause.textContent = on ? "Play" : "Pause";
+    paused = !paused;
+    pause.setAttribute("aria-pressed", paused ? "true" : "false");
+    pause.textContent = paused ? "Play" : "Pause";
   });
+  rail.addEventListener("mouseenter", function () { hold = true; });
+  rail.addEventListener("mouseleave", function () { hold = false; });
+  rail.addEventListener("focusin", function () { hold = true; });
+  rail.addEventListener("focusout", function () { hold = false; });
+  rail.addEventListener("touchstart", function () { hold = true; }, { passive: true });
+  rail.addEventListener("touchend", function () { hold = false; resumeAt = performance.now() + 3000; }, { passive: true });
+  function tick(t) {
+    var dt = Math.min(t - last, 64) / 1000; last = t;
+    var h = half();
+    if (!reduceMotion && !paused && !hold && t > resumeAt && h) {
+      if (Math.abs(rail.scrollLeft - pos) > 2) pos = rail.scrollLeft;
+      pos += dt * 40;
+      if (pos >= h) pos -= h;
+      rail.scrollLeft = pos;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 
   var form = document.getElementById("lead");
   var out = document.getElementById("out");
