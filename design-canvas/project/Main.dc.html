@@ -165,6 +165,19 @@ body{margin:0}
 .nf footer{border-top:1px solid var(--line);padding-block:32px}
 .nf footer nav ul{flex-wrap:wrap;gap:12px 24px}
 .nf footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted);font-size:.92rem}
+
+/* team marquee: auto-scrolls, loops from last back to first, pauses on hover/focus or with the button */
+.nf .rail{overflow:hidden;scroll-snap-type:none;padding-bottom:20px}
+.nf .track{display:flex;gap:20px;width:max-content;animation:nfmarq 32s linear infinite}
+.nf .rail:hover .track,.nf .rail:focus-within .track,.nf .track.paused{animation-play-state:paused}
+@keyframes nfmarq{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 10px))}}
+.nf .pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
+.nf .pause-btn:hover{border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){
+  .nf .rail{overflow-x:auto;scroll-snap-type:x mandatory}
+  .nf .track{animation:none}
+  .nf .dup,.nf .pause-btn{display:none}
+}
 </style>
 </helmet>
 
@@ -399,17 +412,11 @@ body{margin:0}
           <h2>Five people, one small studio</h2>
           <p class="lede">We are a young team and we'd rather you know exactly who is working on your business.</p>
         </div>
-        <div class="rail-btns">
-          <button class="rail-btn" type="button" aria-label="Previous person" onClick="{{railPrev}}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-          </button>
-          <button class="rail-btn" type="button" aria-label="Next person" onClick="{{railNext}}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-          </button>
-        </div>
+        <button class="pause-btn" type="button" aria-pressed="{{paused}}" onClick="{{togglePause}}">{{pauseLabel}}</button>
       </div>
-      <div class="rail" role="region" aria-label="Team members. Scroll sideways to see everyone." tabindex="0">
-        <div class="person">
+      <div class="rail" role="region" aria-label="Team members. They scroll automatically; hover or use the Pause button to stop.">
+        <div class="{{trackCls}}">
+<div class="person">
           <div class="mono" aria-hidden="true">J</div>
           <h3>Joshua</h3>
           <div class="role">Video shooting</div>
@@ -439,6 +446,37 @@ body{margin:0}
           <div class="role">[ROHITH'S ROLE]</div>
           <p>[One line on what Rohith does for clients.]</p>
         </div>
+<div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">J</div>
+          <h3>Joshua</h3>
+          <div class="role">Video shooting</div>
+          <p>Films everything and looks after the gear, so footage is charged, backed up and ready on shoot day.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">H</div>
+          <h3>Hemanth</h3>
+          <div class="role">Editing and creative direction</div>
+          <p>Turns raw footage into finished videos and keeps our delivery on schedule.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">D</div>
+          <h3>Dhathri</h3>
+          <div class="role">Presenter and scriptwriter</div>
+          <p>Writes the scripts, appears on camera and is usually your first point of contact.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">R</div>
+          <h3>Rahul</h3>
+          <div class="role">Websites and tech</div>
+          <p>Builds your website and sets up your domain, email, analytics and ad accounts.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">Ro</div>
+          <h3>Rohith</h3>
+          <div class="role">[ROHITH'S ROLE]</div>
+          <p>[One line on what Rohith does for clients.]</p>
+        </div>
+      </div>
       </div>
     </div>
   </section>
@@ -590,7 +628,7 @@ body{margin:0}
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { lang: 'en', name: '', biz: '', town: '', phone: '', need: 'Reels and short videos', pLang: 'Telugu', notes: '', submitted: false, done: false, status: '' };
+    this.state = { lang: 'en', name: '', biz: '', town: '', phone: '', need: 'Reels and short videos', pLang: 'Telugu', paused: false, notes: '', submitted: false, done: false, status: '' };
   }
   renderVals() {
     const s = this.state;
@@ -606,12 +644,6 @@ class Component extends DCLogic {
       pick: () => this.setState({ lang: id })
     }));
     const beats = T.map((t, i) => ({ t, v: V[i], l: L[s.lang][i] }));
-    const scrollRail = (e, dir) => {
-      const rail = e.currentTarget.closest('section').querySelector('.rail');
-      const p = rail.querySelector('.person');
-      const step = (p ? p.getBoundingClientRect().width : 280) + 20;
-      rail.scrollBy({ left: dir * step, behavior: 'smooth' });
-    };
     const bad = s.submitted;
     let msg = "Hi Novaframe, I'm " + s.name.trim() + " from " + s.biz.trim() + (s.town.trim() ? " in " + s.town.trim() : "") +
       ". I'm looking for: " + s.need + ". I'd like it in " + s.pLang + ".";
@@ -619,8 +651,8 @@ class Component extends DCLogic {
     if (s.phone.trim()) msg += " You can reach me on " + s.phone.trim() + ".";
     return {
       langs, beats,
-      railPrev: (e) => scrollRail(e, -1),
-      railNext: (e) => scrollRail(e, 1),
+      trackCls: s.paused ? 'track paused' : 'track', paused: s.paused, pauseLabel: s.paused ? 'Play' : 'Pause',
+      togglePause: () => this.setState({ paused: !this.state.paused }),
       f: {
         name: s.name, biz: s.biz, town: s.town, phone: s.phone, need: s.need, lang: s.pLang, notes: s.notes,
         nameBad: bad && s.name.trim() === '', bizBad: bad && s.biz.trim() === '',

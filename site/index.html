@@ -205,6 +205,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px soli
 footer{border-top:1px solid var(--line);padding-block:32px}
 footer nav ul{flex-wrap:wrap;gap:12px 24px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;color:var(--muted);font-size:.92rem}
+
+/* team marquee: auto-scrolls, loops from last back to first, pauses on hover/focus or with the button */
+.rail{overflow:hidden;scroll-snap-type:none;padding-bottom:20px}
+.track{display:flex;gap:20px;width:max-content;animation:nfmarq 32s linear infinite}
+.rail:hover .track,.rail:focus-within .track,.track.paused{animation-play-state:paused}
+@keyframes nfmarq{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 10px))}}
+.pause-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--edge);background:var(--paper);color:var(--ink);font:700 .9rem/1 var(--font-body);cursor:pointer}
+.pause-btn:hover{border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){
+  .rail{overflow-x:auto;scroll-snap-type:x mandatory}
+  .track{animation:none}
+  .dup,.pause-btn{display:none}
+}
 </style>
 
 <header class="site">
@@ -404,17 +417,11 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;
           <h2>Five people, one small studio</h2>
           <p class="lede">We are a young team and we'd rather you know exactly who is working on your business.</p>
         </div>
-        <div class="rail-btns">
-          <button class="rail-btn" type="button" id="rail-prev" aria-label="Previous person" aria-controls="rail">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-          </button>
-          <button class="rail-btn" type="button" id="rail-next" aria-label="Next person" aria-controls="rail">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-          </button>
-        </div>
+        <button class="pause-btn" type="button" id="pause" aria-pressed="false" aria-controls="track">Pause</button>
       </div>
-      <div class="rail" id="rail" role="region" aria-label="Team members. Scroll sideways to see everyone." tabindex="0">
-        <div class="person">
+      <div class="rail" id="rail" role="region" aria-label="Team members. They scroll automatically; hover or use the Pause button to stop.">
+        <div class="track" id="track">
+<div class="person">
           <div class="mono" aria-hidden="true">J</div>
           <h3>Joshua</h3>
           <div class="role">Video shooting</div>
@@ -444,6 +451,37 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;
           <div class="role">[ROHITH'S ROLE]</div>
           <p>[One line on what Rohith does for clients.]</p>
         </div>
+<div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">J</div>
+          <h3>Joshua</h3>
+          <div class="role">Video shooting</div>
+          <p>Films everything and looks after the gear, so footage is charged, backed up and ready on shoot day.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">H</div>
+          <h3>Hemanth</h3>
+          <div class="role">Editing and creative direction</div>
+          <p>Turns raw footage into finished videos and keeps our delivery on schedule.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">D</div>
+          <h3>Dhathri</h3>
+          <div class="role">Presenter and scriptwriter</div>
+          <p>Writes the scripts, appears on camera and is usually your first point of contact.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">R</div>
+          <h3>Rahul</h3>
+          <div class="role">Websites and tech</div>
+          <p>Builds your website and sets up your domain, email, analytics and ad accounts.</p>
+        </div>
+        <div class="person dup" aria-hidden="true">
+          <div class="mono" aria-hidden="true">Ro</div>
+          <h3>Rohith</h3>
+          <div class="role">[ROHITH'S ROLE]</div>
+          <p>[One line on what Rohith does for clients.]</p>
+        </div>
+      </div>
       </div>
     </div>
   </section>
@@ -597,23 +635,13 @@ var CONFIG = { whatsapp: "", instagram: "", email: "" };
     document.body.classList.add("has-sticky");
   }
 
-  var rail = document.getElementById("rail");
-  var prevBtn = document.getElementById("rail-prev");
-  var nextBtn = document.getElementById("rail-next");
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  function railStep() {
-    var c = rail.querySelector(".person");
-    return c ? c.getBoundingClientRect().width + 20 : 300;
-  }
-  function railState() {
-    prevBtn.disabled = rail.scrollLeft <= 2;
-    nextBtn.disabled = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
-  }
-  prevBtn.addEventListener("click", function () { rail.scrollBy({ left: -railStep(), behavior: reduce ? "auto" : "smooth" }); });
-  nextBtn.addEventListener("click", function () { rail.scrollBy({ left: railStep(), behavior: reduce ? "auto" : "smooth" }); });
-  rail.addEventListener("scroll", railState, { passive: true });
-  window.addEventListener("resize", railState);
-  railState();
+  var track = document.getElementById("track");
+  var pause = document.getElementById("pause");
+  pause.addEventListener("click", function () {
+    var on = track.classList.toggle("paused");
+    pause.setAttribute("aria-pressed", on ? "true" : "false");
+    pause.textContent = on ? "Play" : "Pause";
+  });
 
   var form = document.getElementById("lead");
   var out = document.getElementById("out");
